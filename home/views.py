@@ -1,6 +1,9 @@
-from django.shortcuts import render, HttpResponse
-from .models import *
+from django.shortcuts import render, HttpResponse,redirect
+from .models import Conatact
 from django.contrib import messages
+from django.contrib.auth.models import User
+from django.contrib.auth import authenticate,login,logout
+from blog.models import Post
 # Create your views here.
 
 def home(request):
@@ -22,3 +25,73 @@ def contact(request):
 
 def about(request):
     return render(request, 'home/about.html')
+
+
+def search(request):
+    query = request.GET['query']
+    if len(query) > 78:
+        allPosts = Post.objects.none()
+    else: 
+        allPoststitle = Post.objects.filter(title__icontains = query)
+        allPostscontent = Post.objects.filter(content__icontains = query)
+        allPosts = allPoststitle.union(allPostscontent) #combine two queryset in django
+    if allPosts.count() == 0:
+        messages.warning(request ,"Not search results found. please refine your query"  )
+    params = {'allPosts':allPosts, 'query':query}  
+    return render(request, 'home/search.html', params)
+
+def handleSignup(request):
+    if request.method == 'POST':
+        #Get the post parameters
+        username = request.POST['username']
+        fname = request.POST['fname']
+        lname = request.POST['lname']
+        email = request.POST['email']
+        pass1 = request.POST['pass1']
+        pass2 = request.POST['pass2']
+        
+        
+       #Check for errorneous inputs
+        if len(username) > 10:
+            messages.error(request, "Username must be under 10 characters")
+            return redirect('home')
+        if not username.isalnum():
+            messages.error(request, "Username should only contain letters and numbers")
+            return redirect('home')
+        
+        if pass1 != pass2:
+            messages.error(request, "password do not match")
+            return redirect('home')
+        
+        #Create the User
+        myuser = User.objects.create_user(username,email,pass1)
+        myuser.first_name = fname
+        myuser.last_name = lname
+        myuser.save()
+        messages.success(request,"Your iCoder accout has been succesfully created ")
+        return redirect('/')
+    else:
+        return HttpResponse("404 - Not Allowd")
+    
+    
+def handeLogin(request):
+    if request.method=="POST":
+        # Get the post parameters
+        loginusername=request.POST['loginusername']
+        loginpassword=request.POST['loginpassword']
+
+        user=authenticate(username= loginusername, password= loginpassword)
+        if user is not None:
+            login(request, user)
+            messages.success(request, "Successfully Logged In")
+            return redirect("home")
+        else:
+            messages.error(request, "Invalid credentials! Please try again")
+            return redirect("home")
+
+    return HttpResponse("404- Not found")
+            
+def handleLogout(request):
+    logout(request)
+    messages.success(request,"Successfully Logged Out")
+    return redirect("home")
